@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .message-container {
+            height: calc(100vh - 180px);
+        }
+        .typing-indicator::after {
+            content: '...';
+            animation: typing 1s infinite;
+        }
+        @keyframes typing {
+            0% { content: ''; }
+            25% { content: '.'; }
+            50% { content: '..'; }
+            75% { content: '...'; }
+        }
+    </style>
+</head>
+<body class="bg-gray-800 text-white">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-3xl font-bold mb-8 text-center">DeepSeek Chat</h1>
+        
+        <!-- Messages Container -->
+        <div class="message-container bg-gray-900 rounded-lg p-4 mb-4 overflow-y-auto">
+            <div id="messages" class="space-y-4">
+                <!-- Messages will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Input Form -->
+        <form id="chat-form" class="flex gap-2">
+            <input type="text" 
+                   id="user-input" 
+                   class="flex-1 px-4 py-2 rounded-lg bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   placeholder="Type your message here..."
+                   autocomplete="off">
+            <button type="submit" 
+                    class="px-6 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Send
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const messagesContainer = document.getElementById('messages');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        let isWaitingForResponse = false;
+
+        function createMessageElement(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+            
+            const messageBubble = document.createElement('div');
+            messageBubble.className = `max-w-[80%] rounded-lg p-3 ${
+                isUser ? 'bg-blue-600' : 'bg-gray-700'
+            }`;
+            
+            const text = document.createElement('p');
+            text.className = 'whitespace-pre-wrap';
+            text.textContent = content;
+            
+            messageBubble.appendChild(text);
+            messageDiv.appendChild(messageBubble);
+            return messageDiv;
+        }
+
+        async function sendMessage(message) {
+            if (isWaitingForResponse) return;
+            isWaitingForResponse = true;
+
+            // Add user message
+            messagesContainer.appendChild(createMessageElement(message, true));
+            userInput.value = '';
+            
+            // Create assistant message container
+            const assistantMessageDiv = document.createElement('div');
+            assistantMessageDiv.className = 'flex justify-start';
+            const assistantBubble = document.createElement('div');
+            assistantBubble.className = 'max-w-[80%] rounded-lg p-3 bg-gray-700';
+            const assistantText = document.createElement('p');
+            assistantText.className = 'whitespace-pre-wrap';
+            assistantBubble.appendChild(assistantText);
+            assistantMessageDiv.appendChild(assistantBubble);
+            messagesContainer.appendChild(assistantMessageDiv);
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message }),
+                });
+
+                const reader = response.body.getReader();
+                let assistantResponse = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const text = new TextDecoder().decode(value);
+                    assistantResponse += text;
+                    assistantText.textContent = assistantResponse;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                assistantText.textContent = 'Error: Failed to get response';
+            }
+
+            isWaitingForResponse = false;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (message) {
+                sendMessage(message);
+            }
+        });
+
+        // Add initial greeting
+        messagesContainer.appendChild(createMessageElement('Hello! How can I help you today?', false));
+    </script>
+</body>
+</html>
